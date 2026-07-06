@@ -72,33 +72,6 @@ tests/
 
 ---
 
-## Run Locally
-
-Generate data
-
-```bash
-python data/generate_data.py --config config/config.yaml
-```
-
-Bronze → Silver
-
-```bash
-python pyspark/jobs/bronze_to_silver.py --config config/config.yaml
-```
-
-Silver → Gold
-
-```bash
-python pyspark/jobs/silver_to_gold.py --config config/config.yaml
-```
-
-Or simply run everything using Docker.
-
-```bash
-docker compose up
-```
-
----
 
 ## Project Highlights
 
