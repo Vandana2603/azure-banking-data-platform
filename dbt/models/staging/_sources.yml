@@ -1,0 +1,38 @@
+version: 2
+
+sources:
+  - name: stg_raw
+    description: >
+      Staging tables landed by Azure Data Factory's Copy Data activity from
+      the gold Parquet layer in ADLS Gen2 into Azure SQL Database (stg schema).
+    schema: stg
+    tables:
+      - name: customers
+        description: Cleaned customer records from the gold layer.
+        columns:
+          - name: customer_id
+            description: Natural/business key for a customer.
+            tests:
+              - unique
+              - not_null
+      - name: accounts
+        description: Cleaned account records from the gold layer.
+        columns:
+          - name: account_id
+            tests:
+              - unique
+              - not_null
+      - name: payments
+        description: Validated payment transactions.
+        columns:
+          - name: payment_id
+            tests:
+              - unique
+              - not_null
+      - name: savings_transactions
+        description: Validated savings account transactions.
+        columns:
+          - name: transaction_id
+            tests:
+              - unique
+              - not_null

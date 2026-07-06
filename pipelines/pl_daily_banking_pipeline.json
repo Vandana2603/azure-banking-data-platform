@@ -1,0 +1,105 @@
+{
+  "name": "pl_daily_banking_pipeline",
+  "properties": {
+    "description": "Master daily pipeline: ingest raw banking data, run Databricks ETL (bronze->silver->gold), load Azure SQL DW, run DBT transformations/tests.",
+    "activities": [
+      {
+        "name": "Copy_RawFiles_To_ADLS",
+        "type": "Copy",
+        "typeProperties": {
+          "source": { "type": "DelimitedTextSource" },
+          "sink": { "type": "DelimitedTextSink" }
+        },
+        "inputs": [{ "referenceName": "ds_source_banking_files", "type": "DatasetReference" }],
+        "outputs": [{ "referenceName": "ds_raw_adls", "type": "DatasetReference" }]
+      },
+      {
+        "name": "Notebook_Bronze_To_Silver",
+        "type": "DatabricksNotebook",
+        "dependsOn": [
+          { "activity": "Copy_RawFiles_To_ADLS", "dependencyConditions": ["Succeeded"] }
+        ],
+        "typeProperties": {
+          "notebookPath": "/Repos/bank-platform/notebooks/01_bronze_to_silver",
+          "baseParameters": {
+            "config_path": "/dbfs/FileStore/bank_platform/config/config.yaml"
+          }
+        },
+        "linkedServiceName": { "referenceName": "ls_azure_databricks", "type": "LinkedServiceReference" },
+        "policy": { "timeout": "0.02:00:00", "retry": 1, "retryIntervalInSeconds": 60 }
+      },
+      {
+        "name": "Notebook_Silver_To_Gold",
+        "type": "DatabricksNotebook",
+        "dependsOn": [
+          { "activity": "Notebook_Bronze_To_Silver", "dependencyConditions": ["Succeeded"] }
+        ],
+        "typeProperties": {
+          "notebookPath": "/Repos/bank-platform/notebooks/02_silver_to_gold",
+          "baseParameters": {
+            "config_path": "/dbfs/FileStore/bank_platform/config/config.yaml"
+          }
+        },
+        "linkedServiceName": { "referenceName": "ls_azure_databricks", "type": "LinkedServiceReference" }
+      },
+      {
+        "name": "Copy_Gold_To_Staging_SQL",
+        "type": "Copy",
+        "dependsOn": [
+          { "activity": "Notebook_Silver_To_Gold", "dependencyConditions": ["Succeeded"] }
+        ],
+        "typeProperties": {
+          "source": { "type": "ParquetSource", "storeSettings": { "type": "AzureBlobFSReadSettings", "recursive": true } },
+          "sink": { "type": "AzureSqlSink", "preCopyScript": "TRUNCATE TABLE stg.customers" }
+        },
+        "inputs": [{ "referenceName": "ds_gold_parquet", "type": "DatasetReference" }],
+        "outputs": [{ "referenceName": "ds_staging_sql", "type": "DatasetReference" }]
+      },
+      {
+        "name": "Execute_Warehouse_Load_SQL",
+        "type": "SqlServerStoredProcedure",
+        "dependsOn": [
+          { "activity": "Copy_Gold_To_Staging_SQL", "dependencyConditions": ["Succeeded"] }
+        ],
+        "typeProperties": {
+          "storedProcedureName": "[dbo].[usp_run_warehouse_load]"
+        },
+        "linkedServiceName": { "referenceName": "ls_azure_sql_dw", "type": "LinkedServiceReference" }
+      },
+      {
+        "name": "Run_DBT_Transformations",
+        "type": "Custom",
+        "dependsOn": [
+          { "activity": "Execute_Warehouse_Load_SQL", "dependencyConditions": ["Succeeded"] }
+        ],
+        "typeProperties": {
+          "command": "dbt run --project-dir . --profiles-dir .",
+          "resourceLinkedService": { "referenceName": "ls_azure_batch", "type": "LinkedServiceReference" }
+        }
+      },
+      {
+        "name": "Run_DBT_Tests",
+        "type": "Custom",
+        "dependsOn": [
+          { "activity": "Run_DBT_Transformations", "dependencyConditions": ["Succeeded"] }
+        ],
+        "typeProperties": {
+          "command": "dbt test --project-dir . --profiles-dir .",
+          "resourceLinkedService": { "referenceName": "ls_azure_batch", "type": "LinkedServiceReference" }
+        }
+      },
+      {
+        "name": "Write_Audit_Log",
+        "type": "SqlServerStoredProcedure",
+        "dependsOn": [
+          { "activity": "Run_DBT_Tests", "dependencyConditions": ["Succeeded", "Failed"] }
+        ],
+        "typeProperties": {
+          "storedProcedureName": "[dbo].[usp_write_pipeline_audit_log]"
+        },
+        "linkedServiceName": { "referenceName": "ls_azure_sql_dw", "type": "LinkedServiceReference" }
+      }
+    ],
+    "annotations": ["banking", "daily", "production-style-portfolio-project"]
+  }
+}

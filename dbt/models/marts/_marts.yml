@@ -1,0 +1,54 @@
+version: 2
+
+models:
+  - name: dim_customer
+    description: "Customer dimension - one row per unique customer."
+    columns:
+      - name: customer_sk
+        description: Surrogate key.
+        tests: [unique, not_null]
+      - name: customer_id
+        description: Natural key from the source system.
+        tests: [unique, not_null]
+      - name: segment
+        tests:
+          - accepted_values:
+              values: ['Retail', 'Premium', 'Corporate', 'Student']
+
+  - name: dim_account
+    description: "Account dimension - one row per account."
+    columns:
+      - name: account_sk
+        tests: [unique, not_null]
+      - name: account_id
+        tests: [unique, not_null]
+      - name: account_status
+        tests:
+          - accepted_values:
+              values: ['Active', 'Dormant', 'Closed']
+
+  - name: fact_payments
+    description: "Grain: one row per successful payment transaction."
+    columns:
+      - name: payment_sk
+        tests: [unique, not_null]
+      - name: payment_id
+        tests: [unique, not_null]
+      - name: amount
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              config:
+                severity: warn
+
+  - name: fact_savings_transactions
+    description: "Grain: one row per savings account transaction."
+    columns:
+      - name: transaction_sk
+        tests: [unique, not_null]
+      - name: transaction_id
+        tests: [unique, not_null]
+      - name: transaction_direction
+        tests:
+          - accepted_values:
+              values: ['CREDIT', 'DEBIT', 'UNKNOWN']

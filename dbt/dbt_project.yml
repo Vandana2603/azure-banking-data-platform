@@ -1,0 +1,27 @@
+name: 'bank_analytics'
+version: '1.0.0'
+config-version: 2
+
+profile: 'bank_analytics'   # matches profiles.yml entry
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  bank_analytics:
+    staging:
+      +materialized: view
+      +schema: staging
+    intermediate:
+      +materialized: ephemeral
+    marts:
+      +materialized: table
+      +schema: dw
+
+vars:
+  min_valid_amount: 0.01
+  max_valid_amount: 5000000.00

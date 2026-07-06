@@ -1,0 +1,73 @@
+# =============================================================================
+# config.yaml
+# Central configuration for the Azure Banking Data Platform
+# Values here are read by pyspark/utils/config_loader.py at runtime.
+# In Azure, secrets (storage keys, SQL passwords) should NEVER live here -
+# they should come from Azure Key Vault via Databricks secret scopes.
+# =============================================================================
+
+environment: "dev"   # dev | test | prod
+
+data_lake:
+  storage_account: "bankdatalakedev"          # ADLS Gen2 storage account name
+  container_raw: "raw"
+  container_bronze: "bronze"
+  container_silver: "silver"
+  container_gold: "gold"
+  base_path: "abfss://{container}@{storage_account}.dfs.core.windows.net"
+
+local_paths:
+  # Used when running the pipeline locally / in Docker instead of real ADLS
+  raw: "data/raw"
+  bronze: "data/bronze"
+  silver: "data/silver"
+  gold: "data/gold"
+  logs: "logs"
+  reports: "docs/data_quality_reports"
+
+sql_warehouse:
+  server: "bank-sql-server.database.windows.net"
+  database: "BankAnalyticsDW"
+  driver: "ODBC Driver 18 for SQL Server"
+  port: 1433
+  # username/password are pulled from environment variables, never hardcoded:
+  #   AZURE_SQL_USER / AZURE_SQL_PASSWORD
+
+databricks:
+  workspace_url: "https://adb-xxxxxxxxxxxxxxx.x.azuredatabricks.net"
+  cluster_id: "0000-000000-abcd1234"
+
+data_generation:
+  num_customers: 8000
+  num_accounts: 12000
+  num_branches: 40
+  num_products: 12
+  num_payments: 25000
+  num_savings_transactions: 15000
+  seed: 42
+  start_date: "2024-01-01"
+  end_date: "2024-12-31"
+
+etl:
+  duplicate_key_columns:
+    payments: ["payment_id"]
+    savings_transactions: ["transaction_id"]
+    accounts: ["account_id"]
+    customers: ["customer_id"]
+  incremental_load:
+    watermark_column: "updated_at"
+    watermark_table: "etl_watermark"
+  invalid_transaction_rules:
+    min_amount: 0.01
+    max_amount: 5000000.00
+    allowed_currencies: ["INR", "USD", "EUR", "GBP"]
+
+logging:
+  level: "INFO"
+  log_file: "logs/pipeline.log"
+  format: "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+
+data_quality:
+  null_threshold_pct: 2.0        # fail job if > 2% nulls in a critical column
+  duplicate_threshold_pct: 0.5
+  report_output: "docs/data_quality_reports"
